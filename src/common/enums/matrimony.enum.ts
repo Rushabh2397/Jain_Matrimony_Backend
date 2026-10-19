@@ -84,3 +84,33 @@ export enum UserRole {
   USER = 'User',
   ADMIN = 'Admin',
 }
+
+export enum InterestStatus {
+  PENDING = 'Pending',
+  ACCEPTED = 'Accepted',
+  DECLINED = 'Declined',
+  CANCELLED = 'Cancelled',
+}
+
+export enum PhotoRequestStatus {
+  PENDING = 'Pending',
+  APPROVED = 'Approved',
+  DECLINED = 'Declined',
+  REVOKED = 'Revoked',
+}
+
+export enum ReportReason {
+  FAKE_PROFILE = 'Fake / Misleading Profile',
+  INAPPROPRIATE_CONTENT = 'Inappropriate Photos or Bio',
+  HARASSMENT = 'Harassment or Abusive Behavior',
+  SCAM_OR_SPAM = 'Scam / Financial Request / Spam',
+  ALREADY_MARRIED = 'Already Married / Engaged',
+  OTHER = 'Other',
+}
+
+export enum ReportStatus {
+  PENDING = 'Pending',
+  REVIEWED = 'Reviewed',
+  RESOLVED = 'Resolved',
+  DISMISSED = 'Dismissed',
+}

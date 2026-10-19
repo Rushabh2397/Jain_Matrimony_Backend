@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, type FindOptionsRelations } from 'typeorm';
 import { User } from './entities/user.entity.js';
 import { IncomeRange, Gender } from '../common/enums/matrimony.enum.js';
 
@@ -20,8 +20,11 @@ export class UsersRepository {
     return await this.repo.find();
   }
 
-  async findProfileById(id: string): Promise<User | null> {
-    return await this.repo.findOne({ where: { id } });
+  async findProfileById(
+    id: string,
+    relations: FindOptionsRelations<User> = { profileDetails: true },
+  ): Promise<User | null> {
+    return await this.repo.findOne({ where: { id }, relations });
   }
 
   // THIS IS THE METHOD WE NEED FOR AUTH
@@ -33,7 +36,26 @@ export class UsersRepository {
     await this.repo.update(id, updateData);
   }
 
+  async updateRefreshTokenHash(
+    id: string,
+    hashedRefreshToken: string | null,
+  ): Promise<void> {
+    await this.repo.update(id, { hashedRefreshToken });
+  }
+
+  async findUserWithRefreshToken(id: string): Promise<User | null> {
+    return await this.repo
+      .createQueryBuilder('user')
+      .where('user.id = :id', { id })
+      .addSelect('user.hashedRefreshToken')
+      .getOne();
+  }
+
   async findByFilters(criteria: { gender?: Gender; city?: string; annualIncome?: IncomeRange }): Promise<User[]> {
     return await this.repo.find({ where: criteria });
+  }
+
+  async softDelete(id: string): Promise<void> {
+    await this.repo.softDelete(id);
   }
 }

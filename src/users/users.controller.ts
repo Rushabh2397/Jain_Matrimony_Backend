@@ -1,6 +1,9 @@
 import {
   Controller,
   Get,
+  Post,
+  Patch,
+  Delete,
   Body,
   Param,
   Put,
@@ -17,8 +20,14 @@ import {
 import { UsersService } from './users.service.js';
 import { User } from './entities/user.entity.js';
 import { PartnerPreferences } from './entities/partner-preferences.entity.js';
+import { ProfileDetails } from './entities/profile-details.entity.js';
+import { PhotoAccessRequest } from './entities/photo-access-request.entity.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpsertPartnerPreferencesDto } from './dto/upsert-partner-preferences.dto.js';
+import { UpsertProfileDetailsDto } from './dto/upsert-profile-details.dto.js';
+import { RespondPhotoRequestDto } from './dto/respond-photo-request.dto.js';
+import { UpdateFcmTokenDto } from './dto/update-fcm-token.dto.js';
+import { DeleteAccountDto } from './dto/delete-account.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
@@ -60,6 +69,45 @@ export class UsersController {
     return await this.usersService.update(user.userId, updateProfileDto);
   }
 
+  // GET /users/profile/export -> Export all user personal data under DPDP Data Portability
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('profile/export')
+  @ApiOperation({
+    summary:
+      'Export authenticated user personal data in compliance with DPDP Act (Data Portability)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Personal data export generated successfully in JSON format',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async exportData(
+    @CurrentUser() user: ActiveUserData,
+  ): Promise<Record<string, unknown>> {
+    return await this.usersService.exportPersonalData(user.userId);
+  }
+
+  // DELETE /users/profile -> Self-service soft delete and erasure under DPDP Right to be Forgotten
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Delete('profile')
+  @ApiOperation({
+    summary:
+      'Self-service account deletion and personal data erasure in compliance with DPDP (Right to be Forgotten)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Account successfully soft-deleted and personal data erased',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async deleteAccount(
+    @CurrentUser() user: ActiveUserData,
+    @Body() dto?: DeleteAccountDto,
+  ): Promise<{ message: string; deletedAt: Date }> {
+    return await this.usersService.deleteAccount(user.userId, dto);
+  }
+
   // GET /users/preferences -> Get logged-in user's partner preferences
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
@@ -88,6 +136,43 @@ export class UsersController {
     return await this.usersService.upsertPartnerPreferences(user.userId, dto);
   }
 
+  // GET /users/profile/details -> Get logged-in user's decoupled profile details (bio, lifestyle, family, kundli)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('profile/details')
+  @ApiOperation({
+    summary:
+      "Get authenticated user's profile details (bio, hobbies, family, astrology)",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile details returned successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Profile details not found' })
+  async getProfileDetails(
+    @CurrentUser() user: ActiveUserData,
+  ): Promise<ProfileDetails> {
+    return await this.usersService.getProfileDetails(user.userId);
+  }
+
+  // PUT /users/profile/details -> Upsert logged-in user's profile details
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Put('profile/details')
+  @ApiOperation({ summary: "Upsert authenticated user's profile details" })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile details saved successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async upsertProfileDetails(
+    @CurrentUser() user: ActiveUserData,
+    @Body() dto: UpsertProfileDetailsDto,
+  ): Promise<ProfileDetails> {
+    return await this.usersService.upsertProfileDetails(user.userId, dto);
+  }
+
   // --- Admin Routes ---
 
   // GET /users -> Admin-only: Get all user profiles
@@ -103,15 +188,134 @@ export class UsersController {
     return await this.usersService.findAll();
   }
 
-  // --- Public / Browsing Routes ---
+  // PUT /users/fcm-token -> Register device push notification token
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Put('fcm-token')
+  @ApiOperation({ summary: 'Register FCM device push notification token for user/parents' })
+  @ApiResponse({ status: 200, description: 'FCM token registered successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async registerFcmToken(
+    @CurrentUser() user: ActiveUserData,
+    @Body() dto: UpdateFcmTokenDto,
+  ): Promise<User> {
+    return await this.usersService.registerFcmToken(user.userId, dto.fcmToken);
+  }
 
-  // GET /users/:id -> Get a single profile by ID
+  // --- Photo Access Request Routes ---
+
+  // GET /users/photo-requests/received -> List incoming photo requests
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('photo-requests/received')
+  @ApiOperation({
+    summary:
+      'List incoming photo access requests received by authenticated user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of received photo requests returned',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getReceivedPhotoRequests(
+    @CurrentUser() user: ActiveUserData,
+  ): Promise<PhotoAccessRequest[]> {
+    return await this.usersService.getReceivedPhotoRequests(user.userId);
+  }
+
+  // GET /users/photo-requests/sent -> List outgoing photo requests
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('photo-requests/sent')
+  @ApiOperation({
+    summary: 'List outgoing photo access requests sent by authenticated user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of sent photo requests returned',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getSentPhotoRequests(
+    @CurrentUser() user: ActiveUserData,
+  ): Promise<PhotoAccessRequest[]> {
+    return await this.usersService.getSentPhotoRequests(user.userId);
+  }
+
+  // PATCH /users/photo-requests/:requestId/respond -> Approve, Decline, or Revoke photo request
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Patch('photo-requests/:requestId/respond')
+  @ApiOperation({
+    summary: 'Respond to photo access request (Approve, Decline, or Revoke)',
+  })
+  @ApiParam({ name: 'requestId', description: 'Photo access request UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Photo request responded successfully',
+  })
+  @ApiResponse({ status: 400, description: 'Invalid status' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden: Only target user can respond',
+  })
+  @ApiResponse({ status: 404, description: 'Photo access request not found' })
+  async respondToPhotoRequest(
+    @CurrentUser() user: ActiveUserData,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+    @Body() dto: RespondPhotoRequestDto,
+  ): Promise<PhotoAccessRequest> {
+    return await this.usersService.respondToPhotoRequest(
+      user.userId,
+      requestId,
+      dto,
+    );
+  }
+
+  // POST /users/:targetId/photo-request -> Request photo access
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Post(':targetId/photo-request')
+  @ApiOperation({
+    summary: 'Request permission to view locked photos of a candidate',
+  })
+  @ApiParam({ name: 'targetId', description: 'Candidate user UUID' })
+  @ApiResponse({
+    status: 201,
+    description: 'Photo access request created successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot request own photos or photos are already public',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Target user not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'Photo request already exists or was previously declined',
+  })
+  async requestPhotoAccess(
+    @CurrentUser() user: ActiveUserData,
+    @Param('targetId', ParseUUIDPipe) targetId: string,
+  ): Promise<PhotoAccessRequest> {
+    return await this.usersService.requestPhotoAccess(user.userId, targetId);
+  }
+
+  // GET /users/:id -> Get a single profile by ID (photo-gated)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
   @Get(':id')
-  @ApiOperation({ summary: 'Get a user profile by UUID' })
+  @ApiOperation({
+    summary: 'Get a user profile by UUID (photo-gated based on interest status and photo requests)',
+  })
   @ApiParam({ name: 'id', description: 'User UUID' })
   @ApiResponse({ status: 200, description: 'User profile found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<User> {
-    return await this.usersService.findOne(id);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: ActiveUserData,
+  ): Promise<User> {
+    return await this.usersService.findOneProfile(id, user.userId);
   }
 }

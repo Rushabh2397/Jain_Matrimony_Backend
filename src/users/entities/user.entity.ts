@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   OneToOne,
   type Relation,
 } from 'typeorm';
@@ -18,8 +19,10 @@ import {
   OccupationType,
   FamilyType,
   UserRole,
+  PhotoRequestStatus,
 } from '../../common/enums/matrimony.enum.js';
 import { PartnerPreferences } from './partner-preferences.entity.js';
+import { ProfileDetails } from './profile-details.entity.js';
 
 @Entity('users')
 export class User {
@@ -29,69 +32,73 @@ export class User {
   @Column({ unique: true })
   phoneNumber: string;
 
-  @Column({ nullable: true })
-  email: string;
+  @Column({ type: 'varchar', nullable: true })
+  email: string | null;
 
   @Column()
   fullName: string;
 
   @Column({ type: 'date', nullable: true })
-  dateOfBirth: Date;
+  dateOfBirth: Date | null;
 
   @Column({ nullable: true, type: 'enum', enum: Gender })
-  gender: Gender;
+  gender: Gender | null;
 
   @Column({ nullable: true, type: 'enum', enum: MaritalStatus })
-  maritalStatus: MaritalStatus;
+  maritalStatus: MaritalStatus | null;
 
   // --- Shwetambar Jain Cultural & Religious Fields ---
   @Column({ type: 'enum', enum: Sect, nullable: true })
-  sect: Sect; // Murtipujak (Deravasi), Sthanakvasi, Terapanthi
+  sect: Sect | null;
 
   @Column({ type: 'enum', enum: SubSect, nullable: true })
-  subSect: SubSect;
+  subSect: SubSect | null;
 
   @Column({ type: 'enum', enum: Diet, nullable: true })
-  diet: Diet; // Vegan, Strict Jain, Regular Jain, Chovihar Jain
+  diet: Diet | null;
 
-  // --- Decoupled Partner Preferences ---
+  // --- Decoupled Partner Preferences & Profile Details ---
   @OneToOne(() => PartnerPreferences, (prefs) => prefs.user, { cascade: true })
   partnerPreferences: Relation<PartnerPreferences>;
 
+  @OneToOne(() => ProfileDetails, (details) => details.user, { cascade: true })
+  profileDetails: Relation<ProfileDetails>;
+
   // --- Professional & Education Details ---
   @Column({ type: 'enum', enum: EducationLevel, nullable: true })
-  highestEducation: EducationLevel;
+  highestEducation: EducationLevel | null;
 
   @Column({ type: 'enum', enum: OccupationType, nullable: true })
-  occupation: OccupationType;
+  occupation: OccupationType | null;
 
-  @Column({ nullable: true })
-  organizationName: string;
+  @Column({ type: 'varchar', nullable: true })
+  organizationName: string | null;
 
   @Column({
     type: 'enum',
     enum: IncomeRange,
     nullable: true,
   })
-  annualIncome: IncomeRange;
+  annualIncome: IncomeRange | null;
 
   // --- Family Details ---
   @Column({ type: 'enum', enum: FamilyType, nullable: true })
-  familyType: FamilyType;
+  familyType: FamilyType | null;
 
   // --- Location Details ---
-  @Column({ nullable: true })
-  city: string;
+  @Column({ type: 'varchar', nullable: true })
+  city: string | null;
 
-  @Column({ nullable: true })
-  state: string;
+  @Column({ type: 'varchar', nullable: true })
+  state: string | null;
 
-  @Column({ nullable: true })
-  country: string;
+  @Column({ type: 'varchar', nullable: true })
+  country: string | null;
 
   // --- Photos & Privacy Control ---
   // Publicly visible default photo or community avatar placeholder
   @Column({ 
+    type: 'varchar',
     nullable: true, 
     default: 'https://cdn.jainmatrimony.app/defaults/placeholder-avatar.png' 
   })
@@ -104,6 +111,9 @@ export class User {
   @Column({ default: true })
   isPhotosLocked: boolean; // True = requires "Ask to View" permission to see actual gallery
 
+  // Transient/computed field populated during dynamic photo gating
+  photoRequestStatus?: PhotoRequestStatus | null;
+
   // --- Trust, Role & Verification ---
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
@@ -111,9 +121,20 @@ export class User {
   @Column({ default: false })
   isVerified: boolean; // ID / KYC Verified Badge
 
+  // Mobile Push Notification Tokens (for user and parents)
+  @Column({ type: 'simple-array', nullable: true })
+  fcmTokens: string[];
+
+  // Hashed Refresh Token for rotating sessions (select: false prevents leaking in queries)
+  @Column({ type: 'varchar', nullable: true, select: false })
+  hashedRefreshToken: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt?: Date | null;
 }

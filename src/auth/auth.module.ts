@@ -6,6 +6,8 @@ import { AuthController } from './auth.controller.js';
 import { UsersModule } from '../users/users.module.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
+import { WhatsAppService } from './services/whatsapp.service.js';
+import { OtpService } from './services/otp.service.js';
 
 @Module({
   imports: [
@@ -17,7 +19,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard],
-  exports: [AuthService, JwtAuthGuard, PassportModule, JwtModule],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, WhatsAppService, OtpService],
+  exports: [AuthService, JwtAuthGuard, PassportModule, JwtModule, WhatsAppService, OtpService],
 })
 export class AuthModule {}

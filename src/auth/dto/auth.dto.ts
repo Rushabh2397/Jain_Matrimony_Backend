@@ -4,7 +4,8 @@ import { ApiProperty } from '@nestjs/swagger';
 export class SendOtpDto {
   @ApiProperty({
     example: '+919876543210',
-    description: 'User mobile number with country code in E.164 format',
+    description:
+      'User mobile number with country code in E.164 format. The OTP is sent live via WhatsApp Cloud API.',
   })
   @IsNotEmpty()
   @IsString()
@@ -26,11 +27,12 @@ export class VerifyOtpDto {
 
   @ApiProperty({
     example: '123456',
-    description: '6-digit OTP code received via SMS/WhatsApp (use 123456 for dev)',
+    description:
+      '6-digit OTP code received via WhatsApp (or 123456 in dev/test mode)',
   })
   @IsNotEmpty()
   @IsString()
-  otp: string; // In production, this is verified against SMS/WhatsApp gateway
+  otp: string;
 }
 
 export class AuthUserSummaryDto {
@@ -47,10 +49,30 @@ export class AuthUserSummaryDto {
 export class VerifyOtpResponseDto {
   @ApiProperty({
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-    description: 'JWT Bearer access token',
+    description: 'Short-lived JWT Bearer access token (15m)',
   })
   accessToken: string;
 
+  @ApiProperty({
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description: 'Long-lived rotating JWT refresh token (7d)',
+  })
+  refreshToken: string;
+
   @ApiProperty({ type: AuthUserSummaryDto })
   user: AuthUserSummaryDto;
+}
+
+export class TokensResponseDto {
+  @ApiProperty({
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description: 'Short-lived JWT Bearer access token (15m)',
+  })
+  accessToken: string;
+
+  @ApiProperty({
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description: 'Long-lived rotating JWT refresh token (7d)',
+  })
+  refreshToken: string;
 }
