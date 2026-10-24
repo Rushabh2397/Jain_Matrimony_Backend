@@ -62,6 +62,26 @@ export class NotificationsService implements OnModuleInit {
           tokens: fcmTokens,
           notification: { title, body },
           data,
+          android: {
+            priority: 'high',
+            notification: {
+              title,
+              body,
+              channelId: 'default',
+              sound: 'default',
+              priority: 'high',
+              defaultSound: true,
+              defaultVibrateTimings: true,
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: 'default',
+                badge: 1,
+              },
+            },
+          },
         });
         this.logger.log(
           `Push notification sent to ${fcmTokens.length} device(s). Success: ${response.successCount}, Failures: ${response.failureCount}`,
