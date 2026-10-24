@@ -179,9 +179,9 @@ describe('SoulSync Scoring Engine (matches-scoring)', () => {
   describe('buildScoreSql and buildScoringParameters', () => {
     it('should generate valid SQL template and parameters', () => {
       const sql = buildScoreSql();
-      expect(sql).toContain('candidate.sect IN (:...targetSects)');
+      expect(sql).toContain('CAST(candidate.sect AS text) IN (:...targetSects)');
       expect(sql).toContain('candidate."subSect"');
-      expect(sql).toContain('candidate.diet IN (:...targetDiets)');
+      expect(sql).toContain('CAST(candidate.diet AS text) IN (:...targetDiets)');
       expect(sql).toContain('candidate."dateOfBirth"');
       expect(sql).toContain('LOWER(candidate.city)');
 

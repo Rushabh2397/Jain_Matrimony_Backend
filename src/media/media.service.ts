@@ -24,8 +24,11 @@ export class MediaService {
     const accessKeyId = process.env.S3_ACCESS_KEY_ID;
     const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
     this.bucketName = process.env.S3_BUCKET_NAME || 'jain-matrimony-media';
+    const defaultBaseUrl = endpoint
+      ? `${endpoint.replace(/\/$/, '')}/${this.bucketName}`
+      : `https://${this.bucketName}.s3.${region}.amazonaws.com`;
     this.cdnBaseUrl = (
-      process.env.CDN_BASE_URL || 'https://cdn.jainmatrimony.app'
+      process.env.CDN_BASE_URL || defaultBaseUrl
     ).replace(/\/$/, '');
 
     if (accessKeyId && secretAccessKey) {

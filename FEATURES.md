@@ -15,6 +15,7 @@
 | **Documentation** | **Swagger / OpenAPI 3.0** | Hosted at `http://localhost:3000/api/docs` with Bearer auth support (`JWT-auth`). |
 | **Testing** | **Vitest 4.1** | Fast test runner with coverage and full unit test coverage across modules. |
 | **Linting & Code Quality** | **Oxlint** & **Prettier** | High-performance linter and code formatter. |
+| **CORS & Security** | **Dynamic Origin Whitelist** | Configurable via `CORS_ORIGIN`, dev auto-allow, mobile client bypass (`!origin`), `credentials: true`. |
 
 ---
 

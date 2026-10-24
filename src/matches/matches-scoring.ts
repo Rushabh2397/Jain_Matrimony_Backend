@@ -226,24 +226,24 @@ export function calculateCompatibility(
 export function buildScoreSql(): string {
   return `(
     (CASE
-      WHEN candidate.sect IN (:...targetSects) THEN 25
-      WHEN candidate.sect IN ('Murtipujak (Deravasi)', 'Sthanakvasi', 'Terapanthi')
+      WHEN CAST(candidate.sect AS text) IN (:...targetSects) THEN 25
+      WHEN CAST(candidate.sect AS text) IN ('Murtipujak (Deravasi)', 'Sthanakvasi', 'Terapanthi')
            AND :userSect IN ('Murtipujak (Deravasi)', 'Sthanakvasi', 'Terapanthi') THEN 15
       ELSE 0
     END)
     +
     (CASE
-      WHEN candidate."subSect" = 'Unspecified / No Bar' OR :userSubSect = 'Unspecified / No Bar' OR 'Unspecified / No Bar' IN (:...targetSubSects) THEN 20
-      WHEN candidate."subSect" IN (:...targetSubSects) THEN 20
-      WHEN (:userSubSect LIKE '%Oswal%' AND candidate."subSect" LIKE '%Oswal%') OR
-           (:userSubSect LIKE '%Shrimal%' AND candidate."subSect" LIKE '%Shrimal%') THEN 15
+      WHEN CAST(candidate."subSect" AS text) = 'Unspecified / No Bar' OR :userSubSect = 'Unspecified / No Bar' OR 'Unspecified / No Bar' IN (:...targetSubSects) THEN 20
+      WHEN CAST(candidate."subSect" AS text) IN (:...targetSubSects) THEN 20
+      WHEN (:userSubSect LIKE '%Oswal%' AND CAST(candidate."subSect" AS text) LIKE '%Oswal%') OR
+           (:userSubSect LIKE '%Shrimal%' AND CAST(candidate."subSect" AS text) LIKE '%Shrimal%') THEN 15
       ELSE 0
     END)
     +
     (CASE
-      WHEN candidate.diet IN (:...targetDiets) THEN 25
-      WHEN (candidate.diet = 'Strict Jain (No Root Vegetables)' AND :userDiet = 'Jain + Regular Chovihar') OR
-           (candidate.diet = 'Jain + Regular Chovihar' AND :userDiet = 'Strict Jain (No Root Vegetables)') THEN 20
+      WHEN CAST(candidate.diet AS text) IN (:...targetDiets) THEN 25
+      WHEN (CAST(candidate.diet AS text) = 'Strict Jain (No Root Vegetables)' AND :userDiet = 'Jain + Regular Chovihar') OR
+           (CAST(candidate.diet AS text) = 'Jain + Regular Chovihar' AND :userDiet = 'Strict Jain (No Root Vegetables)') THEN 20
       WHEN candidate.diet IS NOT NULL AND :userDiet != '__NONE__' THEN 15
       ELSE 0
     END)
