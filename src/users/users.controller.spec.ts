@@ -5,7 +5,7 @@ import { User } from './entities/user.entity.js';
 import { PartnerPreferences } from './entities/partner-preferences.entity.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpsertPartnerPreferencesDto } from './dto/upsert-partner-preferences.dto.js';
-import { Gender, PhotoRequestStatus } from '../common/enums/matrimony.enum.js';
+import { Gender, PhotoRequestStatus, KycStatus, KycDocumentType } from '../common/enums/matrimony.enum.js';
 import { ActiveUserData } from '../common/decorators/current-user.decorator.js';
 import { PhotoAccessRequest } from './entities/photo-access-request.entity.js';
 import { RespondPhotoRequestDto } from './dto/respond-photo-request.dto.js';
@@ -36,6 +36,10 @@ describe('UsersController', () => {
       getSentPhotoRequests: vi.fn(),
       exportPersonalData: vi.fn(),
       deleteAccount: vi.fn(),
+      submitKyc: vi.fn(),
+      getKycStatus: vi.fn(),
+      getPendingKycSubmissions: vi.fn(),
+      reviewKyc: vi.fn(),
     };
 
     controller = new UsersController(mockUsersService as unknown as UsersService);
@@ -288,6 +292,91 @@ describe('UsersController', () => {
         targetId,
       );
       expect(result).toEqual(mockRequest);
+    });
+  });
+
+  describe('submitKyc (POST /users/profile/kyc)', () => {
+    it('should call usersService.submitKyc with active user id and dto', async () => {
+      const dto = {
+        documentType: KycDocumentType.AADHAAR,
+        documentUrl: 'https://example.com/doc.pdf',
+      };
+      const mockResult = {
+        message: 'KYC documents submitted for admin verification',
+        kycStatus: KycStatus.PENDING,
+      };
+      mockUsersService.submitKyc!.mockResolvedValue(mockResult);
+
+      const result = await controller.submitKyc(mockActiveUser, dto);
+
+      expect(mockUsersService.submitKyc).toHaveBeenCalledWith(
+        mockActiveUser.userId,
+        dto,
+      );
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('getKycStatus (GET /users/profile/kyc)', () => {
+    it('should call usersService.getKycStatus with active user id', async () => {
+      const mockResult = {
+        kycStatus: KycStatus.PENDING,
+        kycDocumentType: KycDocumentType.PAN,
+        kycSubmittedAt: new Date(),
+        kycRejectionReason: null,
+        isVerified: false,
+      };
+      mockUsersService.getKycStatus!.mockResolvedValue(mockResult);
+
+      const result = await controller.getKycStatus(mockActiveUser);
+
+      expect(mockUsersService.getKycStatus).toHaveBeenCalledWith(
+        mockActiveUser.userId,
+      );
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('getPendingKyc (GET /users/admin/kyc/pending)', () => {
+    it('should call usersService.getPendingKycSubmissions with query parameters', async () => {
+      const mockResult = {
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+      };
+      mockUsersService.getPendingKycSubmissions!.mockResolvedValue(mockResult);
+
+      const result = await controller.getPendingKyc({ page: 2, limit: 10 });
+
+      expect(mockUsersService.getPendingKycSubmissions).toHaveBeenCalledWith(2, 10);
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('reviewKyc (PATCH /users/admin/kyc/:targetUserId/review)', () => {
+    it('should call usersService.reviewKyc with admin id, target user id and review dto', async () => {
+      const targetUserId = 'target-user-uuid';
+      const dto = {
+        status: KycStatus.APPROVED,
+      };
+      const mockResult = {
+        message: 'KYC submission approved successfully',
+        kycStatus: KycStatus.APPROVED,
+        isVerified: true,
+        kycRejectionReason: null,
+        kycReviewedAt: new Date(),
+      };
+      mockUsersService.reviewKyc!.mockResolvedValue(mockResult);
+
+      const result = await controller.reviewKyc(mockActiveUser, targetUserId, dto);
+
+      expect(mockUsersService.reviewKyc).toHaveBeenCalledWith(
+        mockActiveUser.userId,
+        targetUserId,
+        dto,
+      );
+      expect(result).toEqual(mockResult);
     });
   });
 });

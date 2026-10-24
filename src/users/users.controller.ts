@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   Put,
+  Query,
   ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
@@ -28,10 +29,13 @@ import { UpsertProfileDetailsDto } from './dto/upsert-profile-details.dto.js';
 import { RespondPhotoRequestDto } from './dto/respond-photo-request.dto.js';
 import { UpdateFcmTokenDto } from './dto/update-fcm-token.dto.js';
 import { DeleteAccountDto } from './dto/delete-account.dto.js';
+import { SubmitKycDto } from './dto/submit-kyc.dto.js';
+import { ReviewKycDto } from './dto/review-kyc.dto.js';
+import { PendingKycQueryDto } from './dto/pending-kyc-query.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
-import { UserRole } from '../common/enums/matrimony.enum.js';
+import { UserRole, KycStatus } from '../common/enums/matrimony.enum.js';
 import {
   CurrentUser,
   type ActiveUserData,
@@ -106,6 +110,45 @@ export class UsersController {
     @Body() dto?: DeleteAccountDto,
   ): Promise<{ message: string; deletedAt: Date }> {
     return await this.usersService.deleteAccount(user.userId, dto);
+  }
+
+  // POST /users/profile/kyc -> Submit KYC identity documents for verification
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Post('profile/kyc')
+  @ApiOperation({
+    summary: 'Submit government ID document for KYC profile verification',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'KYC documents submitted for admin verification',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Profile is already verified or invalid payload',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async submitKyc(
+    @CurrentUser() user: ActiveUserData,
+    @Body() dto: SubmitKycDto,
+  ): Promise<{ message: string; kycStatus: KycStatus }> {
+    return await this.usersService.submitKyc(user.userId, dto);
+  }
+
+  // GET /users/profile/kyc -> Get current KYC verification status and history
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('profile/kyc')
+  @ApiOperation({
+    summary: 'Get current KYC verification status and history',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC status returned successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getKycStatus(@CurrentUser() user: ActiveUserData) {
+    return await this.usersService.getKycStatus(user.userId);
   }
 
   // GET /users/preferences -> Get logged-in user's partner preferences
@@ -186,6 +229,58 @@ export class UsersController {
   @ApiResponse({ status: 403, description: 'Forbidden: Requires ADMIN role' })
   async findAll(): Promise<User[]> {
     return await this.usersService.findAll();
+  }
+
+  // GET /users/admin/kyc/pending -> Admin-only: List pending KYC submissions
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @Get('admin/kyc/pending')
+  @ApiOperation({
+    summary: 'Admin only: List all pending KYC verification submissions',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of pending submissions returned',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden: Requires ADMIN role' })
+  async getPendingKyc(@Query() query: PendingKycQueryDto) {
+    return await this.usersService.getPendingKycSubmissions(
+      query.page,
+      query.limit,
+    );
+  }
+
+  // PATCH /users/admin/kyc/:targetUserId/review -> Admin-only: Review KYC submission
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth('JWT-auth')
+  @ApiParam({
+    name: 'targetUserId',
+    description: 'UUID of user whose KYC is being reviewed',
+  })
+  @Patch('admin/kyc/:targetUserId/review')
+  @ApiOperation({
+    summary: 'Admin only: Approve or reject KYC verification submission',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC submission reviewed successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid review decision or missing rejection reason',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden: Requires ADMIN role' })
+  @ApiResponse({ status: 404, description: 'Target user not found' })
+  async reviewKyc(
+    @CurrentUser() admin: ActiveUserData,
+    @Param('targetUserId', ParseUUIDPipe) targetUserId: string,
+    @Body() dto: ReviewKycDto,
+  ) {
+    return await this.usersService.reviewKyc(admin.userId, targetUserId, dto);
   }
 
   // PUT /users/fcm-token -> Register device push notification token

@@ -20,6 +20,8 @@ import {
   FamilyType,
   UserRole,
   PhotoRequestStatus,
+  KycStatus,
+  KycDocumentType,
 } from '../../common/enums/matrimony.enum.js';
 import { PartnerPreferences } from './partner-preferences.entity.js';
 import { ProfileDetails } from './profile-details.entity.js';
@@ -120,6 +122,32 @@ export class User {
 
   @Column({ default: false })
   isVerified: boolean; // ID / KYC Verified Badge
+
+  @Column({
+    type: 'enum',
+    enum: KycStatus,
+    default: KycStatus.UNSUBMITTED,
+  })
+  kycStatus: KycStatus;
+
+  @Column({
+    type: 'enum',
+    enum: KycDocumentType,
+    nullable: true,
+  })
+  kycDocumentType: KycDocumentType | null;
+
+  @Column({ type: 'varchar', nullable: true, select: false })
+  kycDocumentUrl: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  kycRejectionReason: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  kycSubmittedAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  kycReviewedAt: Date | null;
 
   // Mobile Push Notification Tokens (for user and parents)
   @Column({ type: 'simple-array', nullable: true })

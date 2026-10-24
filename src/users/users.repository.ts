@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, type FindOptionsRelations } from 'typeorm';
 import { User } from './entities/user.entity.js';
-import { IncomeRange, Gender } from '../common/enums/matrimony.enum.js';
+import { IncomeRange, Gender, KycStatus } from '../common/enums/matrimony.enum.js';
 
 @Injectable()
 export class UsersRepository {
@@ -57,5 +57,30 @@ export class UsersRepository {
 
   async softDelete(id: string): Promise<void> {
     await this.repo.softDelete(id);
+  }
+
+  async findPendingKyc(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<{ data: User[]; total: number; page: number; limit: number }> {
+    const skip = (page - 1) * limit;
+    const [data, total] = await this.repo
+      .createQueryBuilder('user')
+      .where('user.kycStatus = :status', { status: KycStatus.PENDING })
+      .addSelect('user.kycDocumentUrl')
+      .orderBy('user.kycSubmittedAt', 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    return { data, total, page, limit };
+  }
+
+  async findUserWithKycDocument(id: string): Promise<User | null> {
+    return await this.repo
+      .createQueryBuilder('user')
+      .where('user.id = :id', { id })
+      .addSelect('user.kycDocumentUrl')
+      .getOne();
   }
 }

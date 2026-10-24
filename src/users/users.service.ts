@@ -19,6 +19,8 @@ import { Conversation } from '../chat/entities/conversation.entity.js';
 import {
   InterestStatus,
   PhotoRequestStatus,
+  KycStatus,
+  KycDocumentType,
 } from '../common/enums/matrimony.enum.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
@@ -26,6 +28,8 @@ import { UpsertPartnerPreferencesDto } from './dto/upsert-partner-preferences.dt
 import { UpsertProfileDetailsDto } from './dto/upsert-profile-details.dto.js';
 import { RespondPhotoRequestDto } from './dto/respond-photo-request.dto.js';
 import { DeleteAccountDto } from './dto/delete-account.dto.js';
+import { SubmitKycDto } from './dto/submit-kyc.dto.js';
+import { ReviewKycDto } from './dto/review-kyc.dto.js';
 
 @Injectable()
 export class UsersService {
@@ -650,6 +654,144 @@ export class UsersService {
       message:
         'Account successfully deleted in compliance with DPDP. Your personal data has been erased.',
       deletedAt: now,
+    };
+  }
+
+  /**
+   * Submits government ID document proof for KYC verification.
+   */
+  async submitKyc(
+    userId: string,
+    dto: SubmitKycDto,
+  ): Promise<{ message: string; kycStatus: KycStatus }> {
+    const user = await this.findOne(userId);
+
+    if (user.kycStatus === KycStatus.APPROVED) {
+      throw new BadRequestException('Profile is already verified');
+    }
+
+    user.kycStatus = KycStatus.PENDING;
+    user.kycDocumentType = dto.documentType;
+    user.kycDocumentUrl = dto.documentUrl;
+    user.kycSubmittedAt = new Date();
+    user.kycRejectionReason = null;
+
+    await this.usersRepository.createProfile(user);
+
+    return {
+      message: 'KYC documents submitted for admin verification',
+      kycStatus: user.kycStatus,
+    };
+  }
+
+  /**
+   * Retrieves the current KYC verification status for the authenticated user.
+   */
+  async getKycStatus(userId: string): Promise<{
+    kycStatus: KycStatus;
+    kycDocumentType: KycDocumentType | null;
+    kycSubmittedAt: Date | null;
+    kycRejectionReason: string | null;
+    isVerified: boolean;
+  }> {
+    const user = await this.findOne(userId);
+
+    return {
+      kycStatus: user.kycStatus,
+      kycDocumentType: user.kycDocumentType,
+      kycSubmittedAt: user.kycSubmittedAt,
+      kycRejectionReason: user.kycRejectionReason,
+      isVerified: user.isVerified,
+    };
+  }
+
+  /**
+   * Retrieves paginated pending KYC submissions for admin review.
+   */
+  async getPendingKycSubmissions(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<{ data: User[]; total: number; page: number; limit: number }> {
+    return await this.usersRepository.findPendingKyc(page, limit);
+  }
+
+  /**
+   * Admin review of a candidate's KYC identity submission.
+   */
+  async reviewKyc(
+    _adminId: string,
+    targetUserId: string,
+    dto: ReviewKycDto,
+  ): Promise<{
+    message: string;
+    kycStatus: KycStatus;
+    isVerified: boolean;
+    kycRejectionReason: string | null;
+    kycReviewedAt: Date | null;
+  }> {
+    if (
+      dto.status !== KycStatus.APPROVED &&
+      dto.status !== KycStatus.REJECTED
+    ) {
+      throw new BadRequestException(
+        'Review status must be either Approved or Rejected',
+      );
+    }
+
+    if (
+      dto.status === KycStatus.REJECTED &&
+      (!dto.rejectionReason || !dto.rejectionReason.trim())
+    ) {
+      throw new BadRequestException(
+        'Rejection reason is required when rejecting KYC',
+      );
+    }
+
+    const targetUser = await this.usersRepository.findProfileById(targetUserId);
+    if (!targetUser) {
+      throw new NotFoundException(`User with ID ${targetUserId} not found`);
+    }
+
+    if (targetUser.kycStatus !== KycStatus.PENDING) {
+      throw new BadRequestException('No pending KYC submission for this user');
+    }
+
+    const now = new Date();
+
+    if (dto.status === KycStatus.APPROVED) {
+      targetUser.isVerified = true;
+      targetUser.kycStatus = KycStatus.APPROVED;
+      targetUser.kycRejectionReason = null;
+      targetUser.kycReviewedAt = now;
+
+      await this.notificationsService.sendPushToUser(
+        targetUser.fcmTokens,
+        'Profile Verified! 💍',
+        'Your identity verification has been approved. You now have the verified community badge.',
+        { type: 'KYC_APPROVED' },
+      );
+    } else {
+      targetUser.isVerified = false;
+      targetUser.kycStatus = KycStatus.REJECTED;
+      targetUser.kycRejectionReason = dto.rejectionReason!;
+      targetUser.kycReviewedAt = now;
+
+      await this.notificationsService.sendPushToUser(
+        targetUser.fcmTokens,
+        'KYC Verification Update',
+        dto.rejectionReason!,
+        { type: 'KYC_REJECTED' },
+      );
+    }
+
+    await this.usersRepository.createProfile(targetUser);
+
+    return {
+      message: `KYC submission ${dto.status.toLowerCase()} successfully`,
+      kycStatus: targetUser.kycStatus,
+      isVerified: targetUser.isVerified,
+      kycRejectionReason: targetUser.kycRejectionReason,
+      kycReviewedAt: targetUser.kycReviewedAt,
     };
   }
 }

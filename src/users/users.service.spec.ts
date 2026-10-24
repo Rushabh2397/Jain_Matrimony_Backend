@@ -26,6 +26,8 @@ import {
   Diet,
   InterestStatus,
   PhotoRequestStatus,
+  KycStatus,
+  KycDocumentType,
 } from '../common/enums/matrimony.enum.js';
 
 describe('UsersService', () => {
@@ -49,6 +51,8 @@ describe('UsersService', () => {
       updateRefreshTokenHash: vi.fn(),
       findUserWithRefreshToken: vi.fn(),
       softDelete: vi.fn(),
+      findPendingKyc: vi.fn(),
+      findUserWithKycDocument: vi.fn(),
     };
 
     mockPartnerPreferencesRepo = {
@@ -912,6 +916,211 @@ describe('UsersService', () => {
 
       // Verify softDelete called
       expect(mockUsersRepository.softDelete).toHaveBeenCalledWith(userId);
+    });
+  });
+
+  describe('submitKyc', () => {
+    const userId = 'user-kyc-id';
+
+    it('should throw NotFoundException if user does not exist', async () => {
+      mockUsersRepository.findProfileById!.mockResolvedValue(null);
+
+      await expect(
+        service.submitKyc(userId, {
+          documentType: KycDocumentType.AADHAAR,
+          documentUrl: 'https://example.com/aadhaar.pdf',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if user is already verified', async () => {
+      mockUsersRepository.findProfileById!.mockResolvedValue({
+        id: userId,
+        kycStatus: KycStatus.APPROVED,
+      } as User);
+
+      await expect(
+        service.submitKyc(userId, {
+          documentType: KycDocumentType.AADHAAR,
+          documentUrl: 'https://example.com/aadhaar.pdf',
+        }),
+      ).rejects.toThrow(new BadRequestException('Profile is already verified'));
+    });
+
+    it('should update user with pending KYC details and save', async () => {
+      const mockUser = {
+        id: userId,
+        kycStatus: KycStatus.UNSUBMITTED,
+        kycRejectionReason: 'Previous blur',
+      } as User;
+
+      mockUsersRepository.findProfileById!.mockResolvedValue(mockUser);
+      mockUsersRepository.createProfile!.mockImplementation((u) => Promise.resolve(u));
+
+      const result = await service.submitKyc(userId, {
+        documentType: KycDocumentType.PASSPORT,
+        documentUrl: 'https://storage.jain.com/passport.pdf',
+      });
+
+      expect(result.message).toBe('KYC documents submitted for admin verification');
+      expect(result.kycStatus).toBe(KycStatus.PENDING);
+      expect(mockUsersRepository.createProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: userId,
+          kycStatus: KycStatus.PENDING,
+          kycDocumentType: KycDocumentType.PASSPORT,
+          kycDocumentUrl: 'https://storage.jain.com/passport.pdf',
+          kycRejectionReason: null,
+          kycSubmittedAt: expect.any(Date),
+        }),
+      );
+    });
+  });
+
+  describe('getKycStatus', () => {
+    const userId = 'user-kyc-status-id';
+
+    it('should return user KYC status details', async () => {
+      const now = new Date();
+      mockUsersRepository.findProfileById!.mockResolvedValue({
+        id: userId,
+        kycStatus: KycStatus.PENDING,
+        kycDocumentType: KycDocumentType.PAN,
+        kycSubmittedAt: now,
+        kycRejectionReason: null,
+        isVerified: false,
+      } as User);
+
+      const result = await service.getKycStatus(userId);
+
+      expect(result).toEqual({
+        kycStatus: KycStatus.PENDING,
+        kycDocumentType: KycDocumentType.PAN,
+        kycSubmittedAt: now,
+        kycRejectionReason: null,
+        isVerified: false,
+      });
+    });
+  });
+
+  describe('getPendingKycSubmissions', () => {
+    it('should delegate to usersRepository.findPendingKyc', async () => {
+      const mockResult = {
+        data: [{ id: 'user-1' } as User],
+        total: 1,
+        page: 1,
+        limit: 20,
+      };
+      mockUsersRepository.findPendingKyc!.mockResolvedValue(mockResult);
+
+      const result = await service.getPendingKycSubmissions(1, 20);
+
+      expect(mockUsersRepository.findPendingKyc).toHaveBeenCalledWith(1, 20);
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('reviewKyc', () => {
+    const adminId = 'admin-id';
+    const targetUserId = 'target-user-id';
+
+    it('should throw BadRequestException if review status is neither Approved nor Rejected', async () => {
+      await expect(
+        service.reviewKyc(adminId, targetUserId, {
+          status: KycStatus.PENDING,
+        }),
+      ).rejects.toThrow(new BadRequestException('Review status must be either Approved or Rejected'));
+    });
+
+    it('should throw BadRequestException if status is Rejected but rejectionReason is missing', async () => {
+      await expect(
+        service.reviewKyc(adminId, targetUserId, {
+          status: KycStatus.REJECTED,
+          rejectionReason: '   ',
+        }),
+      ).rejects.toThrow(new BadRequestException('Rejection reason is required when rejecting KYC'));
+    });
+
+    it('should throw NotFoundException if target user not found', async () => {
+      mockUsersRepository.findProfileById!.mockResolvedValue(null);
+
+      await expect(
+        service.reviewKyc(adminId, targetUserId, {
+          status: KycStatus.APPROVED,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if target user does not have PENDING KYC status', async () => {
+      mockUsersRepository.findProfileById!.mockResolvedValue({
+        id: targetUserId,
+        kycStatus: KycStatus.UNSUBMITTED,
+      } as User);
+
+      await expect(
+        service.reviewKyc(adminId, targetUserId, {
+          status: KycStatus.APPROVED,
+        }),
+      ).rejects.toThrow(new BadRequestException('No pending KYC submission for this user'));
+    });
+
+    it('should approve KYC, set isVerified=true, clear rejectionReason, and send push notification', async () => {
+      const mockTarget = {
+        id: targetUserId,
+        kycStatus: KycStatus.PENDING,
+        fcmTokens: ['fcm-token-target'],
+        isVerified: false,
+      } as User;
+
+      mockUsersRepository.findProfileById!.mockResolvedValue(mockTarget);
+      mockUsersRepository.createProfile!.mockImplementation((u) => Promise.resolve(u));
+
+      const result = await service.reviewKyc(adminId, targetUserId, {
+        status: KycStatus.APPROVED,
+      });
+
+      expect(result.message).toBe('KYC submission approved successfully');
+      expect(result.kycStatus).toBe(KycStatus.APPROVED);
+      expect(result.isVerified).toBe(true);
+      expect(result.kycRejectionReason).toBeNull();
+      expect(result.kycReviewedAt).toBeInstanceOf(Date);
+
+      expect(mockNotificationsService.sendPushToUser).toHaveBeenCalledWith(
+        ['fcm-token-target'],
+        'Profile Verified! 💍',
+        expect.stringContaining('Your identity verification has been approved'),
+        { type: 'KYC_APPROVED' },
+      );
+    });
+
+    it('should reject KYC, set isVerified=false, set rejectionReason, and send push notification', async () => {
+      const mockTarget = {
+        id: targetUserId,
+        kycStatus: KycStatus.PENDING,
+        fcmTokens: ['fcm-token-target'],
+        isVerified: false,
+      } as User;
+
+      mockUsersRepository.findProfileById!.mockResolvedValue(mockTarget);
+      mockUsersRepository.createProfile!.mockImplementation((u) => Promise.resolve(u));
+
+      const result = await service.reviewKyc(adminId, targetUserId, {
+        status: KycStatus.REJECTED,
+        rejectionReason: 'Document image is cut off and unreadable',
+      });
+
+      expect(result.message).toBe('KYC submission rejected successfully');
+      expect(result.kycStatus).toBe(KycStatus.REJECTED);
+      expect(result.isVerified).toBe(false);
+      expect(result.kycRejectionReason).toBe('Document image is cut off and unreadable');
+      expect(result.kycReviewedAt).toBeInstanceOf(Date);
+
+      expect(mockNotificationsService.sendPushToUser).toHaveBeenCalledWith(
+        ['fcm-token-target'],
+        'KYC Verification Update',
+        'Document image is cut off and unreadable',
+        { type: 'KYC_REJECTED' },
+      );
     });
   });
 });

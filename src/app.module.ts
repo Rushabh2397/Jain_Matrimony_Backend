@@ -17,6 +17,7 @@ import { PhotoAccessRequest } from './users/entities/photo-access-request.entity
 import { UserBlock } from './safety/entities/user-block.entity.js';
 import { UserReport } from './safety/entities/user-report.entity.js';
 import { SafetyModule } from './safety/safety.module.js';
+import { MediaModule } from './media/media.module.js';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { SafetyModule } from './safety/safety.module.js';
     InterestsModule,
     ChatModule,
     SafetyModule,
+    MediaModule,
   ],
 })
 export class AppModule {}

@@ -114,3 +114,24 @@ export enum ReportStatus {
   RESOLVED = 'Resolved',
   DISMISSED = 'Dismissed',
 }
+
+export enum KycStatus {
+  UNSUBMITTED = 'Unsubmitted',
+  PENDING = 'Pending',
+  APPROVED = 'Approved',
+  REJECTED = 'Rejected',
+}
+
+export enum KycDocumentType {
+  AADHAAR = 'Aadhaar Card',
+  PASSPORT = 'Passport',
+  PAN = 'PAN Card',
+  VOTER_ID = 'Voter ID',
+}
+
+export enum MediaUploadType {
+  PROFILE_PHOTO = 'profile_photo',
+  GALLERY_PHOTO = 'gallery_photo',
+  KYC_DOCUMENT = 'kyc_document',
+}
+

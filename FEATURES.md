@@ -342,9 +342,66 @@ Provides self-service account termination and automated PII anonymization:
 
 ---
 
+## 🪪 11. KYC Document Upload & Admin Verification Workflow (`UsersModule`)
+
+Ensures high community trust and authenticity across Shwetambar Jain matrimonial profiles by validating government-issued identity documents before awarding the `isVerified = true` verified member badge.
+
+### 11.1 Document Types & Lifecycle (`KycStatus`)
+- **Supported Identity Documents (`KycDocumentType`)**:
+  - `Aadhaar Card`
+  - `Passport`
+  - `PAN Card`
+  - `Voter ID`
+- **Verification Lifecycle (`KycStatus`)**:
+  - `Unsubmitted`: Default state on user registration.
+  - `Pending`: Document uploaded and awaiting admin moderation.
+  - `Approved`: Document verified by an Admin; `isVerified` set to `true`.
+  - `Rejected`: Document rejected with mandatory feedback notes; `isVerified` set to `false`.
+
+### 11.2 Privacy-First Document Protection
+- **Column-Level Projection Shield (`select: false`)**: The `kycDocumentUrl` column is flagged with `select: false` on the `User` entity, ensuring sensitive government ID URLs are never inadvertently exposed in candidate search, discovery feeds, or public profile APIs.
+- **Admin Review Projection**: Only the authorized admin query (`GET /users/admin/kyc/pending`) explicitly selects `.addSelect('user.kycDocumentUrl')` for document inspection.
+
+### 11.3 Multi-Channel Push Notifications & Feedback
+- **On Approval**: Awards verified community badge (`isVerified: true`) and fires an FCM push notification (`Profile Verified! 💍`).
+- **On Rejection**: Requires an admin rejection explanation and fires an FCM notification (`KYC Verification Update`) with actionable feedback so the member can re-upload legible proof.
+
+---
+
+## ☁️ 12. Media Upload & Presigned Object Storage (`MediaModule`)
+
+Provides direct-to-cloud file uploads leveraging S3-compatible object storage (AWS S3, Cloudflare R2, MinIO) without routing high-bandwidth binary payloads through the application server.
+
+### 12.1 Presigned Upload Workflow (`MediaService`)
+- **Direct S3/R2 Ingestion**: Uses `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` with `PutObjectCommand` to generate short-lived (5-minute / 300-second) cryptographically signed PUT URLs.
+- **Client Flow**: Clients request a presigned URL, upload the raw binary payload directly to the storage bucket, and subsequently store the deterministic CDN URL (`fileUrl`) in their profile or KYC record.
+- **Structured Storage Namespacing**:
+  - `profile_photo`: `users/${userId}/avatar-${Date.now()}.${ext}`
+  - `gallery_photo`: `users/${userId}/gallery-${Date.now()}.${ext}`
+  - `kyc_document`: `kyc/${userId}/doc-${Date.now()}.${ext}`
+
+### 12.2 Strict MIME Type & Extension Validation
+- **Supported File Types (`MediaUploadType`)**: `profile_photo`, `gallery_photo`, `kyc_document`.
+- **MIME Allowlist**:
+  - Images: `image/jpeg`, `image/png`, `image/webp` (allowed for all upload types).
+  - Documents: `application/pdf` is **strictly restricted to KYC identity documents**; attempting to upload a PDF as an avatar or gallery image is rejected with `400 Bad Request`.
+- **Sanitized Extensions**: Deterministic file extension mapping derived from verified MIME types (`.jpg`, `.png`, `.webp`, `.pdf`).
+
+### 12.3 Environment-Aware Architecture & Local Development Fallback
+- **Configurable Storage Providers**: Compatible with Cloudflare R2, AWS S3, or self-hosted MinIO via standard environment variables:
+  - `S3_REGION` (default: `'auto'` for R2)
+  - `S3_ENDPOINT` (e.g. Cloudflare R2 S3 API URL or MinIO endpoint)
+  - `S3_ACCESS_KEY_ID` & `S3_SECRET_ACCESS_KEY`
+  - `S3_BUCKET_NAME`
+  - `CDN_BASE_URL` (public CDN domain for served assets)
+- **Zero-Dependency Dev Mode**: If S3 credentials are absent in local development, returns a realistic mock upload URL (`http://localhost:3000/mock-upload/...`) and mock public CDN URL, allowing frontend developers and CI runners to test without cloud provisioning.
+
+---
+
 ## 🛠️ API Endpoint Matrix
 
 | Method | Endpoint | Auth Required | Role Required | Description |
+| :--- | :--- | :---: | :---: | :--- |
 | :--- | :--- | :---: | :---: | :--- |
 | **POST** | `/auth/send-otp` | ❌ No | Anyone | Trigger login OTP |
 | **POST** | `/auth/verify-otp` | ❌ No | Anyone | Verify OTP, receive dual JWT tokens (access + refresh) & onboarding flags |
@@ -354,6 +411,8 @@ Provides self-service account termination and automated PII anonymization:
 | **PUT** | `/users/profile` | ✅ JWT | User / Admin | Update current profile details |
 | **GET** | `/users/profile/export` | ✅ JWT | User / Admin | Export all personal data in JSON format under DPDP Data Portability |
 | **DELETE** | `/users/profile` | ✅ JWT | User / Admin | Self-service soft delete and personal data erasure under DPDP Right to be Forgotten |
+| **POST** | `/users/profile/kyc` | ✅ JWT | User / Admin | Submit government ID document proof for KYC verification |
+| **GET** | `/users/profile/kyc` | ✅ JWT | User / Admin | Retrieve authenticated user's KYC status and submission history |
 | **GET** | `/users/preferences` | ✅ JWT | User / Admin | Retrieve current partner preferences |
 | **PUT** | `/users/preferences` | ✅ JWT | User / Admin | Upsert current partner preferences |
 | **GET** | `/users/profile/details` | ✅ JWT | User / Admin | Retrieve decoupled bio, lifestyle, family & kundli details |
@@ -364,7 +423,9 @@ Provides self-service account termination and automated PII anonymization:
 | **GET** | `/users/photo-requests/received` | ✅ JWT | User / Admin | List incoming photo access requests received by user |
 | **GET** | `/users/photo-requests/sent` | ✅ JWT | User / Admin | List outgoing photo access requests sent by user |
 | **GET** | `/users/:id` | ✅ JWT | User / Admin | View profile by UUID (photo-gated & blocks-enforced) |
-| **GET** | `/users` | ✅ JWT | **Admin Only** | Directory listing for moderation / KYC |
+| **GET** | `/users` | ✅ JWT | **Admin Only** | Directory listing for moderation |
+| **GET** | `/users/admin/kyc/pending` | ✅ JWT | **Admin Only** | Paginated review queue of pending KYC submissions with document links |
+| **PATCH** | `/users/admin/kyc/:targetUserId/review` | ✅ JWT | **Admin Only** | Approve or reject a user's KYC submission with push notification alerts |
 | **GET** | `/matches` | ✅ JWT | User / Admin | SoulSync discovery feed ordered by compatibility % (supports `includeInteracted`, excludes blocked users) |
 | **GET** | `/matches/:id/score` | ✅ JWT | User / Admin | Detailed compatibility score breakdown with candidate |
 | **POST** | `/interests/:receiverId` | ✅ JWT | User / Admin | Send interest handshake request with optional icebreaker note |
@@ -383,15 +444,16 @@ Provides self-service account termination and automated PII anonymization:
 | **POST** | `/safety/report/:targetUserId` | ✅ JWT | User / Admin | Report a profile for moderation (with optional auto-block) |
 | **GET** | `/safety/reports` | ✅ JWT | **Admin Only** | Moderation dashboard to list all reported profiles (supports `status` filter) |
 | **PATCH** | `/safety/reports/:reportId` | ✅ JWT | **Admin Only** | Review and update report status with resolution notes |
+| **POST** | `/media/presigned-url` | ✅ JWT | User / Admin | Generate cryptographically signed S3/R2 direct upload URL for photos or KYC proof |
 
 ---
 
 ## 🚀 Upcoming Backlog (Immediate Roadmap)
 
-1. **KYC Document Upload & Verification**:
-   - Government ID document upload with Admin review workflow to award `isVerified = true`.
-2. **Advanced Partner Filter Presets & Horoscope Compatibility**:
+1. **Advanced Partner Filter Presets & Horoscope Compatibility**:
    - Extended Kundli Milan gun scoring (out of 36 gunas) for astrological compatibility.
-3. **Automated Weekly Match Digest**:
+2. **Automated Weekly Match Digest**:
    - Scheduled job to notify users of high-compatibility new registrations via WhatsApp/push notification.
+3. **Multi-Admin Activity Audit Log**:
+   - Traceability log tracking admin actions (KYC approvals/rejections and report resolutions).
 
