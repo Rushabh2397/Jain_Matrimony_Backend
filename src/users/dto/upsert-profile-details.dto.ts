@@ -208,5 +208,71 @@ export class UpsertProfileDetailsDto {
   @IsString()
   @MaxLength(120)
   placeOfBirth?: string;
+
+  @ApiPropertyOptional({ example: 'Aarav', maxLength: 60, description: "First name" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  firstName?: string;
+
+  @ApiPropertyOptional({ example: 'Rajeshbhai', maxLength: 60, description: "Middle name (usually father's name)" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  middleName?: string;
+
+  @ApiPropertyOptional({ example: 'Shah', maxLength: 60, description: "Last name / surname" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  lastName?: string;
+
+  @ApiPropertyOptional({ example: 'B+', maxLength: 4, description: "Blood group" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4)
+  bloodGroup?: string;
+
+  @ApiPropertyOptional({ example: 'Jayantilal Shah', maxLength: 120, description: "Grandfather's name (Dadaji)" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  paternalGrandfatherName?: string;
+
+  @ApiPropertyOptional({ example: 'Kantaben Shah', maxLength: 120, description: "Grandmother's name (Dadiji)" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  paternalGrandmotherName?: string;
+
+  @ApiPropertyOptional({ example: 'Ramniklal Kothari', maxLength: 120, description: "Maternal grandfather's name (Nanaji)" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  maternalGrandfatherName?: string;
+
+  @ApiPropertyOptional({ example: 'Savitaben Kothari', maxLength: 120, description: "Maternal grandmother's name (Naniji)" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  maternalGrandmotherName?: string;
+
+  @ApiPropertyOptional({ example: 'Mehta', maxLength: 120, description: "Paternal grandmother's saakha (Daadiji)" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  dadiSaakha?: string;
+
+  @ApiPropertyOptional({ example: 'Doshi', maxLength: 120, description: "Maternal grandmother's saakha (Naaniji)" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  naniSaakha?: string;
+
+  @ApiPropertyOptional({ example: 'Kothari', maxLength: 120, description: "Maternal uncle's saakha (Maamaji)" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  mamaSaakha?: string;
 }
 

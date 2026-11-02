@@ -69,6 +69,40 @@ export class ProfileDetails {
   @Column({ type: 'varchar', nullable: true })
   placeOfBirth: string | null;
 
+  // --- Name parts, blood group, grandparents and saakha (onboarding v2) ---
+  @Column({ type: 'varchar', nullable: true })
+  firstName: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  middleName: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  lastName: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  bloodGroup: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  paternalGrandfatherName: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  paternalGrandmotherName: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  maternalGrandfatherName: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  maternalGrandmotherName: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  dadiSaakha: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  naniSaakha: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  mamaSaakha: string | null;
+
   // --- Relation & Timestamps ---
   @OneToOne(() => User, (user) => user.profileDetails, { onDelete: 'CASCADE' })
   @JoinColumn()
