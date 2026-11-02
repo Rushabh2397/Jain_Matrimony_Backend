@@ -65,6 +65,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   /**
+   * Sends a new message to everyone in the conversation room and to the recipient's inbox.
+   * Socket.IO de-duplicates across the two rooms, so a client in both gets it once.
+   */
+  broadcastMessage(conversationId: string, message: { recipientId: string }): void {
+    this.server.to(`conv_${conversationId}`).to(`user_${message.recipientId}`).emit('newMessage', message);
+  }
+
+  /**
    * Joins a specific conversation chat room after verifying participant access.
    */
   @SubscribeMessage('joinConversation')
@@ -111,11 +119,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         payload.content,
       );
 
-      // Emit to active conversation room
-      this.server.to(`conv_${payload.conversationId}`).emit('newMessage', result);
-
-      // Also emit to recipient's personal inbox room for instant notification
-      this.server.to(`user_${result.recipientId}`).emit('newMessage', result);
+      this.broadcastMessage(payload.conversationId, result);
 
       return result;
     } catch (error: any) {

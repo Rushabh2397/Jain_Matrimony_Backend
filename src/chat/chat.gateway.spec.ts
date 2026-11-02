@@ -8,7 +8,7 @@ describe('ChatGateway', () => {
   let gateway: ChatGateway;
   let mockJwtService: Partial<Record<keyof JwtService, ReturnType<typeof vi.fn>>>;
   let mockChatService: Partial<Record<keyof ChatService, ReturnType<typeof vi.fn>>>;
-  let mockServer: Partial<Record<keyof Server, ReturnType<typeof vi.fn>>>;
+  let mockServer: { to: ReturnType<typeof vi.fn>; rooms: { to: ReturnType<typeof vi.fn>; emit: ReturnType<typeof vi.fn> } };
   let mockSocket: Partial<Socket>;
 
   const userId = '11111111-1111-1111-1111-111111111111';
@@ -26,8 +26,12 @@ describe('ChatGateway', () => {
     };
 
     const emitFn = vi.fn();
+    // Chainable like Socket.IO: server.to(a).to(b).emit(...)
+    const rooms: { to: ReturnType<typeof vi.fn>; emit: typeof emitFn } = { to: vi.fn(), emit: emitFn };
+    rooms.to.mockReturnValue(rooms);
     mockServer = {
-      to: vi.fn().mockReturnValue({ emit: emitFn }),
+      to: vi.fn().mockReturnValue(rooms),
+      rooms,
     };
 
     mockSocket = {
@@ -130,8 +134,10 @@ describe('ChatGateway', () => {
         convId,
         'Hello!',
       );
+      // One emit to both rooms, so a client in both gets the message once.
       expect(mockServer.to).toHaveBeenCalledWith(`conv_${convId}`);
-      expect(mockServer.to).toHaveBeenCalledWith(`user_${recipientId}`);
+      expect(mockServer.rooms.to).toHaveBeenCalledWith(`user_${recipientId}`);
+      expect(mockServer.rooms.emit).toHaveBeenCalledTimes(1);
       expect(result).toEqual(mockResult);
     });
   });

@@ -26,13 +26,17 @@ import {
 } from '../common/decorators/current-user.decorator.js';
 import { Conversation } from './entities/conversation.entity.js';
 import { Message } from './entities/message.entity.js';
+import { ChatGateway } from './chat.gateway.js';
 
 @ApiTags('Chat & Messaging')
 @ApiBearerAuth('JWT-auth')
 @UseGuards(JwtAuthGuard)
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly chatGateway: ChatGateway,
+  ) {}
 
   @Get('conversations')
   @ApiOperation({ summary: 'Get all active chat conversations for the authenticated user' })
@@ -80,11 +84,14 @@ export class ChatController {
     @CurrentUser() user: ActiveUserData,
     @Body() dto: SendMessageDto,
   ): Promise<SendMessageResult> {
-    return await this.chatService.sendMessage(
+    const result = await this.chatService.sendMessage(
       user.userId,
       dto.conversationId,
       dto.content,
     );
+    // Messages sent over REST reach the other person live too.
+    this.chatGateway.broadcastMessage(dto.conversationId, result);
+    return result;
   }
 
   @Patch('conversations/:id/read')

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ChatController } from './chat.controller.js';
 import { ChatService, SendMessageResult } from './chat.service.js';
+import { ChatGateway } from './chat.gateway.js';
 import { ActiveUserData } from '../common/decorators/current-user.decorator.js';
 import { Conversation } from './entities/conversation.entity.js';
 import { Message } from './entities/message.entity.js';
@@ -8,6 +9,7 @@ import { Message } from './entities/message.entity.js';
 describe('ChatController', () => {
   let controller: ChatController;
   let mockChatService: Partial<Record<keyof ChatService, ReturnType<typeof vi.fn>>>;
+  let mockGateway: { broadcastMessage: ReturnType<typeof vi.fn> };
 
   const mockActiveUser: ActiveUserData = {
     userId: '11111111-1111-1111-1111-111111111111',
@@ -21,7 +23,8 @@ describe('ChatController', () => {
       markMessagesAsRead: vi.fn(),
     };
 
-    controller = new ChatController(mockChatService as unknown as ChatService);
+    mockGateway = { broadcastMessage: vi.fn() };
+    controller = new ChatController(mockChatService as unknown as ChatService, mockGateway as unknown as ChatGateway);
   });
 
   it('should be defined', () => {
@@ -86,6 +89,7 @@ describe('ChatController', () => {
         dto.conversationId,
         dto.content,
       );
+      expect(mockGateway.broadcastMessage).toHaveBeenCalledWith(dto.conversationId, mockResult);
       expect(result).toEqual(mockResult);
     });
   });
